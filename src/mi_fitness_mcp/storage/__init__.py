@@ -21,7 +21,7 @@ class Database:
 
     def __init__(self, db_path: Path | str):
         """Initialize database.
-        
+
         Args:
             db_path: Path to SQLite database file
         """
@@ -31,7 +31,7 @@ class Database:
     def _init_db(self) -> None:
         """Initialize database schema."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with self._get_connection() as conn:
             # Daily activity table
             conn.execute("""
@@ -171,23 +171,23 @@ class Database:
 
             # Create indexes for better query performance
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activity_user_date 
+                CREATE INDEX IF NOT EXISTS idx_activity_user_date
                 ON daily_activity(user_id, date)
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_sleep_user_start 
+                CREATE INDEX IF NOT EXISTS idx_sleep_user_start
                 ON sleep_sessions(user_id, start_at)
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_workouts_user_start 
+                CREATE INDEX IF NOT EXISTS idx_workouts_user_start
                 ON workouts(user_id, start_at)
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_measurements_user_ts 
+                CREATE INDEX IF NOT EXISTS idx_measurements_user_ts
                 ON body_measurements(user_id, timestamp)
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_heart_rate_user_ts 
+                CREATE INDEX IF NOT EXISTS idx_heart_rate_user_ts
                 ON heart_rate_samples(user_id, timestamp)
             """)
 
@@ -205,7 +205,7 @@ class Database:
 
     def insert_daily_activity(self, activity: DailyActivity) -> bool:
         """Insert or update daily activity record.
-        
+
         Returns:
             True if record was inserted, False if updated
         """
@@ -458,7 +458,7 @@ class Database:
             rows = conn.execute(
                 """
                 SELECT * FROM sleep_sessions
-                WHERE user_id = ? 
+                WHERE user_id = ?
                 AND date(start_at) >= ? AND date(start_at) <= ?
                 ORDER BY start_at
                 """,
@@ -526,11 +526,11 @@ class Database:
         """Get data coverage statistics."""
         with self._get_connection() as conn:
             results = []
-            
+
             # Activity coverage
             row = conn.execute(
                 """
-                SELECT 
+                SELECT
                     MIN(date) as first_date,
                     MAX(date) as last_date,
                     COUNT(DISTINCT date) as days_with_data
@@ -540,15 +540,17 @@ class Database:
                 (user_id,),
             ).fetchone()
             if row and row["first_date"]:
-                results.append({
-                    "data_type": "daily_activity",
-                    **dict(row),
-                })
+                results.append(
+                    {
+                        "data_type": "daily_activity",
+                        **dict(row),
+                    }
+                )
 
             # Sleep coverage
             row = conn.execute(
                 """
-                SELECT 
+                SELECT
                     MIN(date(start_at)) as first_date,
                     MAX(date(start_at)) as last_date,
                     COUNT(DISTINCT date(start_at)) as days_with_data
@@ -558,15 +560,17 @@ class Database:
                 (user_id,),
             ).fetchone()
             if row and row["first_date"]:
-                results.append({
-                    "data_type": "sleep",
-                    **dict(row),
-                })
+                results.append(
+                    {
+                        "data_type": "sleep",
+                        **dict(row),
+                    }
+                )
 
             # Workouts coverage
             row = conn.execute(
                 """
-                SELECT 
+                SELECT
                     MIN(date(start_at)) as first_date,
                     MAX(date(start_at)) as last_date,
                     COUNT(DISTINCT date(start_at)) as days_with_data
@@ -576,15 +580,17 @@ class Database:
                 (user_id,),
             ).fetchone()
             if row and row["first_date"]:
-                results.append({
-                    "data_type": "workouts",
-                    **dict(row),
-                })
+                results.append(
+                    {
+                        "data_type": "workouts",
+                        **dict(row),
+                    }
+                )
 
             # Body measurements coverage
             row = conn.execute(
                 """
-                SELECT 
+                SELECT
                     MIN(date(timestamp)) as first_date,
                     MAX(date(timestamp)) as last_date,
                     COUNT(DISTINCT date(timestamp)) as days_with_data
@@ -594,14 +600,16 @@ class Database:
                 (user_id,),
             ).fetchone()
             if row and row["first_date"]:
-                results.append({
-                    "data_type": "body_measurements",
-                    **dict(row),
-                })
+                results.append(
+                    {
+                        "data_type": "body_measurements",
+                        **dict(row),
+                    }
+                )
 
             row = conn.execute(
                 """
-                SELECT 
+                SELECT
                     MIN(date(timestamp)) as first_date,
                     MAX(date(timestamp)) as last_date,
                     COUNT(DISTINCT date(timestamp)) as days_with_data
@@ -611,9 +619,11 @@ class Database:
                 (user_id,),
             ).fetchone()
             if row and row["first_date"]:
-                results.append({
-                    "data_type": "heart_rate",
-                    **dict(row),
-                })
+                results.append(
+                    {
+                        "data_type": "heart_rate",
+                        **dict(row),
+                    }
+                )
 
             return results

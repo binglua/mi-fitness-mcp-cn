@@ -33,14 +33,113 @@ query_service = None
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
-        Tool(name="get_connection_status", description="Check connection status", inputSchema={"type": "object", "properties": {}}),
-        Tool(name="sync_data", description="Synchronize Mi Fitness data", inputSchema={"type": "object", "properties": {"data_types": {"type": "array", "items": {"type": "string"}}, "start_date": {"type": "string"}, "end_date": {"type": "string"}, "force_full_sync": {"type": "boolean"}}}),
-        Tool(name="get_profile", description="Get user profile information", inputSchema={"type": "object", "properties": {}}),
-        Tool(name="get_daily_summary", description="Get daily activity summary", inputSchema={"type": "object", "properties": {"date": {"type": "string"}, "start_date": {"type": "string"}, "end_date": {"type": "string"}}}),
-        Tool(name="query_metric_series", description="Query metric series", inputSchema={"type": "object", "properties": {"metric": {"type": "string", "enum": ["steps", "distance_m", "active_kcal", "weight_kg"]}, "start_date": {"type": "string"}, "end_date": {"type": "string"}, "granularity": {"type": "string", "enum": ["day", "week", "month"]}, "aggregation": {"type": "string", "enum": ["sum", "avg", "min", "max", "latest"]}}, "required": ["metric", "start_date", "end_date"]}),
-        Tool(name="query_heart_rate", description="Query heart rate samples", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "sample_type": {"type": "string", "enum": ["resting", "active", "passive", "workout"]}, "limit": {"type": "integer"}}, "required": ["start_date", "end_date"]}),
-        Tool(name="query_body_measurements", description="Query body measurements", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "metrics": {"type": "array", "items": {"type": "string", "enum": ["weight_kg", "bmi", "body_fat_pct", "muscle_mass_kg", "water_pct"]}}, "latest_only": {"type": "boolean"}}, "required": ["start_date", "end_date"]}),
-        Tool(name="get_data_coverage", description="Get data coverage", inputSchema={"type": "object", "properties": {"data_types": {"type": "array", "items": {"type": "string"}}}}),
+        Tool(
+            name="get_connection_status",
+            description="Check connection status",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="sync_data",
+            description="Synchronize Mi Fitness data",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "data_types": {"type": "array", "items": {"type": "string"}},
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "force_full_sync": {"type": "boolean"},
+                },
+            },
+        ),
+        Tool(
+            name="get_profile",
+            description="Get user profile information",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_daily_summary",
+            description="Get daily activity summary",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+            },
+        ),
+        Tool(
+            name="query_metric_series",
+            description="Query metric series",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "metric": {
+                        "type": "string",
+                        "enum": ["steps", "distance_m", "active_kcal", "weight_kg"],
+                    },
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "granularity": {"type": "string", "enum": ["day", "week", "month"]},
+                    "aggregation": {
+                        "type": "string",
+                        "enum": ["sum", "avg", "min", "max", "latest"],
+                    },
+                },
+                "required": ["metric", "start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_heart_rate",
+            description="Query heart rate samples",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "sample_type": {
+                        "type": "string",
+                        "enum": ["resting", "active", "passive", "workout"],
+                    },
+                    "limit": {"type": "integer"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_body_measurements",
+            description="Query body measurements",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "metrics": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "weight_kg",
+                                "bmi",
+                                "body_fat_pct",
+                                "muscle_mass_kg",
+                                "water_pct",
+                            ],
+                        },
+                    },
+                    "latest_only": {"type": "boolean"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="get_data_coverage",
+            description="Get data coverage",
+            inputSchema={
+                "type": "object",
+                "properties": {"data_types": {"type": "array", "items": {"type": "string"}}},
+            },
+        ),
     ]
 
 
@@ -74,7 +173,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def _handle_get_connection_status() -> dict:
     global adapter, config
     if not config or config.mode == "not_configured":
-        return ConnectionStatus(mode="not_configured", connected=False, message="Server not configured.").model_dump()
+        return ConnectionStatus(
+            mode="not_configured", connected=False, message="Server not configured."
+        ).model_dump()
 
     connected = adapter is not None and adapter.is_connected()
     last_sync = None
@@ -87,7 +188,12 @@ async def _handle_get_connection_status() -> dict:
                 sync_time = datetime.fromisoformat(state["last_sync_at"])
                 if last_sync is None or sync_time > last_sync:
                     last_sync = sync_time
-    return ConnectionStatus(mode=config.mode, connected=connected, last_sync_at=last_sync, available_data_types=available_types).model_dump()
+    return ConnectionStatus(
+        mode=config.mode,
+        connected=connected,
+        last_sync_at=last_sync,
+        available_data_types=available_types,
+    ).model_dump()
 
 
 async def _handle_sync_data(arguments: dict) -> dict:
@@ -102,7 +208,12 @@ async def _handle_sync_data(arguments: dict) -> dict:
     types_synced = []
     for data_type in data_types:
         try:
-            result = await sync_service.sync_data_type(data_type=data_type, start_date=arguments.get("start_date"), end_date=arguments.get("end_date"), force_full=arguments.get("force_full_sync", False))
+            result = await sync_service.sync_data_type(
+                data_type=data_type,
+                start_date=arguments.get("start_date"),
+                end_date=arguments.get("end_date"),
+                force_full=arguments.get("force_full_sync", False),
+            )
             total_added += result.get("added", 0)
             total_updated += result.get("updated", 0)
             total_skipped += result.get("skipped", 0)
@@ -110,13 +221,32 @@ async def _handle_sync_data(arguments: dict) -> dict:
         except Exception as e:
             logger.error(f"Failed to sync {data_type}: {e}")
     finished_at = datetime.utcnow()
-    return {"status": "ok", "sync_id": sync_id, "started_at": started_at.isoformat(), "finished_at": finished_at.isoformat(), "records_added": total_added, "records_updated": total_updated, "records_skipped": total_skipped, "data_types_synced": types_synced}
+    return {
+        "status": "ok",
+        "sync_id": sync_id,
+        "started_at": started_at.isoformat(),
+        "finished_at": finished_at.isoformat(),
+        "records_added": total_added,
+        "records_updated": total_updated,
+        "records_skipped": total_skipped,
+        "data_types_synced": types_synced,
+    }
 
 
 async def _handle_get_profile() -> dict:
     if not adapter or not adapter.is_connected():
         return {"status": "error", "error": "Not connected to data source"}
-    return QueryResponse(status="ok", source=config.mode if config else "unknown", data={"profile": {"user_id": adapter.get_user_id() or "unknown", "timezone": config.timezone if config else "UTC", "devices": []}}).model_dump()
+    return QueryResponse(
+        status="ok",
+        source=config.mode if config else "unknown",
+        data={
+            "profile": {
+                "user_id": adapter.get_user_id() or "unknown",
+                "timezone": config.timezone if config else "UTC",
+                "devices": [],
+            }
+        },
+    ).model_dump()
 
 
 async def _handle_get_daily_summary(arguments: dict) -> dict:
@@ -133,24 +263,45 @@ async def _handle_get_daily_summary(arguments: dict) -> dict:
 async def _handle_query_metric_series(arguments: dict) -> dict:
     if not query_service:
         return {"status": "error", "error": "Query service not initialized"}
-    series = query_service.get_metric_series(metric=arguments["metric"], start_date=arguments["start_date"], end_date=arguments["end_date"], granularity=arguments.get("granularity", "day"), aggregation=arguments.get("aggregation", "sum"))
-    return QueryResponse(status="ok", source="cache", data={"metric": arguments["metric"], "series": series}).model_dump()
+    series = query_service.get_metric_series(
+        metric=arguments["metric"],
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        granularity=arguments.get("granularity", "day"),
+        aggregation=arguments.get("aggregation", "sum"),
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"metric": arguments["metric"], "series": series}
+    ).model_dump()
 
 
 async def _handle_query_heart_rate(arguments: dict) -> dict:
     if not query_service:
         return {"status": "error", "error": "Query service not initialized"}
-    samples = query_service.get_heart_rate_samples(start_date=arguments["start_date"], end_date=arguments["end_date"], sample_type=arguments.get("sample_type"), limit=arguments.get("limit"))
-    return QueryResponse(status="ok", source="cache", data={"samples": samples, "count": len(samples)}).model_dump()
+    samples = query_service.get_heart_rate_samples(
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        sample_type=arguments.get("sample_type"),
+        limit=arguments.get("limit"),
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"samples": samples, "count": len(samples)}
+    ).model_dump()
 
 
 async def _handle_query_body_measurements(arguments: dict) -> dict:
     if not query_service:
         return {"status": "error", "error": "Query service not initialized"}
-    measurements = query_service.get_body_measurements(start_date=arguments["start_date"], end_date=arguments["end_date"], metrics=arguments.get("metrics"))
+    measurements = query_service.get_body_measurements(
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        metrics=arguments.get("metrics"),
+    )
     if arguments.get("latest_only") and measurements:
         measurements = [measurements[-1]]
-    return QueryResponse(status="ok", source="cache", data={"measurements": measurements, "count": len(measurements)}).model_dump()
+    return QueryResponse(
+        status="ok", source="cache", data={"measurements": measurements, "count": len(measurements)}
+    ).model_dump()
 
 
 async def _handle_get_data_coverage(arguments: dict) -> dict:
@@ -167,7 +318,9 @@ async def main():
     if config.mode == "mi_fitness_cloud":
         user_id, pass_token = load_mi_fitness_token()
         if user_id and pass_token:
-            adapter = MiFitnessCloudAdapter(user_id=user_id, pass_token=pass_token, region=config.region)
+            adapter = MiFitnessCloudAdapter(
+                user_id=user_id, pass_token=pass_token, region=config.region
+            )
             if await adapter.connect():
                 logger.info("Connected to Mi Fitness cloud API")
             else:

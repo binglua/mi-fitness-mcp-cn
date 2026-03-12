@@ -1,6 +1,6 @@
 """Pydantic models for Mi Fitness MCP."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -11,16 +11,14 @@ class BaseEntity(BaseModel):
 
     id: str = Field(description="Internal UUID")
     provider: Literal["mi_fitness"] = Field(description="Data provider")
-    source_type: Literal["cloud_session"] = Field(
-        description="Source of the data"
-    )
+    source_type: Literal["cloud_session"] = Field(description="Source of the data")
     source_record_id: str | None = Field(None, description="Provider's native ID")
     user_id: str = Field(description="User identifier")
     device_id: str | None = Field(None, description="Device that recorded the data")
     timezone: str = Field(default="UTC", description="Timezone for the data")
     collected_at: datetime | None = Field(None, description="When data was recorded")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
 
 
 class DailyActivity(BaseEntity):
@@ -177,7 +175,7 @@ class QueryResponse(BaseModel):
 
     status: Literal["ok", "error"] = "ok"
     source: Literal["mi_fitness_cloud", "cloud_session", "cache", "unknown"]
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
     timezone: str = "UTC"
     data: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None

@@ -8,9 +8,8 @@ from mi_fitness_mcp.adapters.mi_fitness_cloud import MiFitnessCloudAdapter
 from mi_fitness_mcp.auth import load_mi_fitness_token, save_mi_fitness_token
 from mi_fitness_mcp.config import Config, get_config_path, load_config, save_config
 from mi_fitness_mcp.server import main as server_main
-from mi_fitness_mcp.storage import Database
 from mi_fitness_mcp.services.sync_service import SyncService
-
+from mi_fitness_mcp.storage import Database
 
 PROGRAM_NAME = "mi-fitness-mcp"
 
@@ -70,7 +69,9 @@ def cmd_doctor(args):
             print("✅ Mi Fitness credentials найдены")
             print(f"   User ID: {user_id}")
             print(f"   Region: {config.region}")
-            adapter = MiFitnessCloudAdapter(user_id=user_id, pass_token=pass_token, region=config.region)
+            adapter = MiFitnessCloudAdapter(
+                user_id=user_id, pass_token=pass_token, region=config.region
+            )
             connected, data_types, region = asyncio.run(_check_adapter_health(adapter))
             print(f"   Подключение: {'✅' if connected else '❌'}")
             if connected:
@@ -144,7 +145,9 @@ def cmd_sync(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog=PROGRAM_NAME, description="MCP server for Mi Fitness data")
+    parser = argparse.ArgumentParser(
+        prog=PROGRAM_NAME, description="MCP server for Mi Fitness data"
+    )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     subparsers.add_parser("serve", help="Run MCP server")
 
@@ -157,7 +160,11 @@ def main():
     subparsers.add_parser("doctor", help="Check configuration and diagnose issues")
 
     sync_parser = subparsers.add_parser("sync", help="Sync data from source")
-    sync_parser.add_argument("--type", choices=["daily_activity", "body_measurements", "heart_rate"], help="Type of data to sync")
+    sync_parser.add_argument(
+        "--type",
+        choices=["daily_activity", "body_measurements", "heart_rate"],
+        help="Type of data to sync",
+    )
     sync_parser.add_argument("--start-date", help="Start date (YYYY-MM-DD)")
     sync_parser.add_argument("--end-date", help="End date (YYYY-MM-DD)")
 

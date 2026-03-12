@@ -20,6 +20,7 @@ build/
 htmlcov/
 .tox/
 .mypy_cache/
+.ruff_cache/
 .dmypy.json
 *.iml
 .idea/
@@ -27,3 +28,15 @@ htmlcov/
 *.swp
 *.swo
 *~
+
+# Local runtime data
+logs/
+data/
+exports/
+tmp/
+config.json
+*.local.json
+*.sqlite
+*.sqlite-*
+*.db-*
+*.zip

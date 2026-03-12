@@ -1,9 +1,8 @@
 """Base adapter interface for data sources."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Iterator
-from pathlib import Path
-from typing import Any, Coroutine, Union
+from collections.abc import AsyncIterator, Coroutine, Iterator
+from typing import Any, Union
 
 from mi_fitness_mcp.models import (
     BodyMeasurement,
@@ -20,7 +19,7 @@ class DataAdapter(ABC):
     @abstractmethod
     def connect(self) -> Union[bool, "Coroutine[Any, Any, bool]"]:
         """Connect to data source.
-        
+
         Returns:
             True if connection successful
         """
@@ -41,7 +40,7 @@ class DataAdapter(ABC):
         self,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> Union[Iterator[DailyActivity], AsyncIterator[DailyActivity]]:
+    ) -> Iterator[DailyActivity] | AsyncIterator[DailyActivity]:
         """Iterate over daily activity records."""
         pass
 
@@ -50,7 +49,7 @@ class DataAdapter(ABC):
         self,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> Union[Iterator[SleepSession], AsyncIterator[SleepSession]]:
+    ) -> Iterator[SleepSession] | AsyncIterator[SleepSession]:
         """Iterate over sleep session records."""
         pass
 
@@ -59,7 +58,7 @@ class DataAdapter(ABC):
         self,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> Union[Iterator[Workout], AsyncIterator[Workout]]:
+    ) -> Iterator[Workout] | AsyncIterator[Workout]:
         """Iterate over workout records."""
         pass
 
@@ -68,7 +67,7 @@ class DataAdapter(ABC):
         self,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> Union[Iterator[BodyMeasurement], AsyncIterator[BodyMeasurement]]:
+    ) -> Iterator[BodyMeasurement] | AsyncIterator[BodyMeasurement]:
         """Iterate over body measurement records."""
         pass
 
@@ -77,7 +76,7 @@ class DataAdapter(ABC):
         self,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> Union[Iterator[HeartRateSample], AsyncIterator[HeartRateSample]]:
+    ) -> Iterator[HeartRateSample] | AsyncIterator[HeartRateSample]:
         """Iterate over heart rate records."""
         pass
 

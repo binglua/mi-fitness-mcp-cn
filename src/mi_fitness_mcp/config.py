@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from platformdirs import user_config_dir, user_data_dir, user_log_dir
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _default_database_path() -> Path:
@@ -27,8 +27,7 @@ class Config(BaseModel):
     store_raw_payloads: bool = True
     default_lookback_days: int = 30
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 def get_config_dir() -> Path:
@@ -48,7 +47,7 @@ def load_config() -> Config:
         save_config(config)
         return config
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         data = json.load(f)
 
     if "database_path" in data and isinstance(data["database_path"], str):

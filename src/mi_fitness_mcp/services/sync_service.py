@@ -2,8 +2,8 @@
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timedelta
+from collections.abc import AsyncIterator
+from datetime import datetime
 from typing import Any
 
 from mi_fitness_mcp.adapters.base import DataAdapter
@@ -17,7 +17,7 @@ class SyncService:
 
     def __init__(self, adapter: DataAdapter, db: Database):
         """Initialize sync service.
-        
+
         Args:
             adapter: Data source adapter
             db: Database instance
@@ -42,13 +42,13 @@ class SyncService:
         force_full: bool = False,
     ) -> dict:
         """Synchronize a specific data type.
-        
+
         Args:
             data_type: Type of data to sync (daily_activity, sleep, workouts, body_measurements)
             start_date: Start date (YYYY-MM-DD), defaults to 30 days ago
             end_date: End date (YYYY-MM-DD), defaults to today
             force_full: Force full sync ignoring last sync state
-            
+
         Returns:
             Dict with sync statistics
         """
@@ -65,13 +65,7 @@ class SyncService:
         if not end_date:
             end_date = datetime.now().strftime("%Y-%m-%d")
         if not start_date:
-            if last_record_ts:
-                start_date = last_record_ts.strftime("%Y-%m-%d")
-            elif self.adapter.__class__.__name__ == "MiFitnessCloudAdapter":
-                start_date = "2020-01-01"
-            else:
-                start = datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=30)
-                start_date = start.strftime("%Y-%m-%d")
+            start_date = last_record_ts.strftime("%Y-%m-%d") if last_record_ts else "2020-01-01"
 
         added = 0
         updated = 0
@@ -158,7 +152,7 @@ class SyncService:
         force_full: bool = False,
     ) -> dict:
         """Synchronous wrapper for sync_data_type.
-        
+
         Use this when calling from synchronous code.
         """
         return asyncio.run(self.sync_data_type(data_type, start_date, end_date, force_full))

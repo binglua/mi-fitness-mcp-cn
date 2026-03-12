@@ -1,8 +1,8 @@
+import asyncio
 import base64
 import hashlib
 import json
 import os
-import random
 import struct
 from collections import defaultdict
 from collections.abc import AsyncIterator
@@ -13,8 +13,13 @@ from urllib.parse import urlencode
 import httpx
 
 from mi_fitness_mcp.adapters.base import DataAdapter
-from mi_fitness_mcp.models import BodyMeasurement, DailyActivity, HeartRateSample, SleepSession, Workout
-
+from mi_fitness_mcp.models import (
+    BodyMeasurement,
+    DailyActivity,
+    HeartRateSample,
+    SleepSession,
+    Workout,
+)
 
 LOGIN_PREFIX = b"&&&START&&&"
 KNOWN_REGIONS = ["ru", "cn", "de", "i2", "sg", "us"]
@@ -24,7 +29,7 @@ def _read_login_payload(text: str) -> dict:
     payload = text.encode()
     if not payload.startswith(LOGIN_PREFIX):
         raise RuntimeError("unexpected Xiaomi login response")
-    return json.loads(payload[len(LOGIN_PREFIX):].decode())
+    return json.loads(payload[len(LOGIN_PREFIX) :].decode())
 
 
 def _rc4_crypt(key: bytes, payload: bytes) -> bytes:
@@ -72,7 +77,9 @@ def _gen_signature(method: str, path: str, values: dict[str, str], signed_nonce:
 
 
 class MiFitnessCloudAdapter(DataAdapter):
-    def __init__(self, user_id: str | None = None, pass_token: str | None = None, region: str = "ru"):
+    def __init__(
+        self, user_id: str | None = None, pass_token: str | None = None, region: str = "ru"
+    ):
         self.user_id = user_id
         self.pass_token = pass_token
         self.region = region
@@ -107,6 +114,11 @@ class MiFitnessCloudAdapter(DataAdapter):
     def get_available_data_types(self) -> list[str]:
         return self._available_types.copy()
 
+    async def _close_client(self) -> None:
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
     async def _login_with_token(self, user_id: str, pass_token: str) -> None:
         if not self._client:
             raise RuntimeError("client not initialized")
@@ -130,38 +142,57 @@ class MiFitnessCloudAdapter(DataAdapter):
         if not self._client:
             raise RuntimeError("client not initialized")
 
-        form = {"data": json.dumps(payload, separators=(",", ":"))}
-        nonce = _gen_nonce()
-        signed_nonce = _gen_signed_nonce(self._ssecurity, nonce)
-        form["rc4_hash__"] = _gen_signature("POST", api_path, form, signed_nonce)
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                form = {"data": json.dumps(payload, separators=(",", ":"))}
+                nonce = _gen_nonce()
+                signed_nonce = _gen_signed_nonce(self._ssecurity, nonce)
+                form["rc4_hash__"] = _gen_signature("POST", api_path, form, signed_nonce)
 
-        encrypted: dict[str, str] = {}
-        for key, value in form.items():
-            encrypted[key] = base64.b64encode(_rc4_crypt(signed_nonce, value.encode())).decode()
+                encrypted: dict[str, str] = {}
+                for key, value in form.items():
+                    encrypted[key] = base64.b64encode(
+                        _rc4_crypt(signed_nonce, value.encode())
+                    ).decode()
 
-        encrypted["signature"] = _gen_signature("POST", api_path, encrypted, signed_nonce)
-        encrypted["_nonce"] = base64.b64encode(nonce).decode()
+                encrypted["signature"] = _gen_signature("POST", api_path, encrypted, signed_nonce)
+                encrypted["_nonce"] = base64.b64encode(nonce).decode()
 
-        response = await self._client.post(
-            base_url + api_path,
-            headers={
-                "Cookie": self._cookies,
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            content=urlencode(encrypted),
-        )
-        response.raise_for_status()
-        plaintext = _rc4_crypt(signed_nonce, base64.b64decode(response.text))
-        body = json.loads(plaintext)
-        if body.get("code") != 0:
-            raise RuntimeError(body.get("message", "unknown mi fitness error"))
-        return body.get("result", {})
+                response = await self._client.post(
+                    base_url + api_path,
+                    headers={
+                        "Cookie": self._cookies,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    content=urlencode(encrypted),
+                )
+                response.raise_for_status()
+                plaintext = _rc4_crypt(signed_nonce, base64.b64decode(response.text))
+                body = json.loads(plaintext)
+                if body.get("code") != 0:
+                    raise RuntimeError(body.get("message", "unknown mi fitness error"))
+                return body.get("result", {})
+            except Exception as exc:
+                last_error = exc
+                if attempt == 2:
+                    break
+                await asyncio.sleep(0.5 * (attempt + 1))
+        raise RuntimeError(f"Mi Fitness request failed: {last_error}")
 
-    async def _fetch_key(self, key: str, start_date: str, end_date: str, region: str | None = None) -> list[dict]:
+    async def _fetch_key(
+        self, key: str, start_date: str, end_date: str, region: str | None = None
+    ) -> list[dict]:
         region_name = region or self.region
-        base_url = "https://hlth.io.mi.com" if region_name in ("", "cn") else f"https://{region_name}.hlth.io.mi.com"
+        base_url = (
+            "https://hlth.io.mi.com"
+            if region_name in ("", "cn")
+            else f"https://{region_name}.hlth.io.mi.com"
+        )
         start_time = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
-        end_time = int(datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=UTC).timestamp())
+        end_time = int(
+            datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=UTC).timestamp()
+        )
         next_key = None
         items: list[dict] = []
 
@@ -183,7 +214,9 @@ class MiFitnessCloudAdapter(DataAdapter):
         return items
 
     async def _discover_region(self, preferred_region: str) -> str:
-        candidates = [preferred_region] + [region for region in KNOWN_REGIONS if region != preferred_region]
+        candidates = [preferred_region] + [
+            region for region in KNOWN_REGIONS if region != preferred_region
+        ]
         for region in candidates:
             for key in ("weight", "steps", "heart_rate"):
                 try:
@@ -243,7 +276,9 @@ class MiFitnessCloudAdapter(DataAdapter):
             yield
 
         records = await self._fetch_key("steps", start_date, end_date)
-        daily: dict[str, dict[str, float]] = defaultdict(lambda: {"steps": 0, "distance_m": 0.0, "active_kcal": 0.0})
+        daily: dict[str, dict[str, float]] = defaultdict(
+            lambda: {"steps": 0, "distance_m": 0.0, "active_kcal": 0.0}
+        )
         for item in records:
             payload = self._parse_value(item)
             date_str = self._record_datetime(item).strftime("%Y-%m-%d")
@@ -343,7 +378,5 @@ class MiFitnessCloudAdapter(DataAdapter):
             )
 
     async def close(self) -> None:
-        if self._client:
-            await self._client.aclose()
-            self._client = None
-            self._connected = False
+        await self._close_client()
+        self._connected = False

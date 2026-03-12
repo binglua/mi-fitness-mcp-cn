@@ -1,5 +1,6 @@
 """Query service for retrieving data from database."""
 
+from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -11,7 +12,7 @@ class QueryService:
 
     def __init__(self, db: Database, user_id: str):
         """Initialize query service.
-        
+
         Args:
             db: Database instance
             user_id: User identifier
@@ -22,7 +23,7 @@ class QueryService:
     def get_daily_summaries(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
         """Get daily activity summaries for date range."""
         records = self.db.query_daily_activity(self.user_id, start_date, end_date)
-        
+
         # Group by date and aggregate
         summaries = {}
         for record in records:
@@ -37,7 +38,7 @@ class QueryService:
                     "floors": 0,
                     "active_minutes": 0,
                 }
-            
+
             summaries[date]["steps"] += record.get("steps", 0)
             summaries[date]["distance_m"] += record.get("distance_m", 0)
             summaries[date]["active_kcal"] += record.get("active_kcal", 0)
@@ -47,7 +48,7 @@ class QueryService:
                 summaries[date]["floors"] += record["floors"]
             if record.get("active_minutes"):
                 summaries[date]["active_minutes"] += record["active_minutes"]
-        
+
         return list(summaries.values())
 
     def get_metric_series(
@@ -60,22 +61,24 @@ class QueryService:
     ) -> list[dict[str, Any]]:
         """Get time series for a metric."""
         summaries = self.get_daily_summaries(start_date, end_date)
-        
+
         series = []
         for summary in summaries:
             value = summary.get(metric)
             if value is not None:
-                series.append({
-                    "date": summary["date"],
-                    "value": value,
-                })
-        
+                series.append(
+                    {
+                        "date": summary["date"],
+                        "value": value,
+                    }
+                )
+
         # Apply aggregation if needed
         if granularity == "week":
             series = self._aggregate_by_week(series, aggregation)
         elif granularity == "month":
             series = self._aggregate_by_month(series, aggregation)
-        
+
         return series
 
     def _aggregate_by_week(
@@ -85,17 +88,17 @@ class QueryService:
     ) -> list[dict]:
         """Aggregate daily series by week."""
         weeks = {}
-        
+
         for item in series:
             date = datetime.strptime(item["date"], "%Y-%m-%d")
             # Get week start (Monday)
             week_start = date - timedelta(days=date.weekday())
             week_key = week_start.strftime("%Y-%m-%d")
-            
+
             if week_key not in weeks:
                 weeks[week_key] = []
             weeks[week_key].append(item["value"])
-        
+
         result = []
         for week_key, values in sorted(weeks.items()):
             if aggregation == "sum":
@@ -108,9 +111,9 @@ class QueryService:
                 value = max(values)
             else:
                 value = sum(values)
-            
+
             result.append({"date": week_key, "value": value})
-        
+
         return result
 
     def _aggregate_by_month(
@@ -120,15 +123,15 @@ class QueryService:
     ) -> list[dict]:
         """Aggregate daily series by month."""
         months = {}
-        
+
         for item in series:
             date = datetime.strptime(item["date"], "%Y-%m-%d")
             month_key = date.strftime("%Y-%m")
-            
+
             if month_key not in months:
                 months[month_key] = []
             months[month_key].append(item["value"])
-        
+
         result = []
         for month_key, values in sorted(months.items()):
             if aggregation == "sum":
@@ -141,9 +144,9 @@ class QueryService:
                 value = max(values)
             else:
                 value = sum(values)
-            
+
             result.append({"date": month_key + "-01", "value": value})
-        
+
         return result
 
     def get_sleep_sessions(
@@ -154,13 +157,13 @@ class QueryService:
     ) -> list[dict[str, Any]]:
         """Get sleep sessions for date range."""
         records = self.db.query_sleep_sessions(self.user_id, start_date, end_date)
-        
+
         sessions = []
         for record in records:
             # Skip naps if not included
             if not include_naps and record.get("is_nap"):
                 continue
-            
+
             session = {
                 "sleep_id": record["sleep_id"],
                 "start_at": record["start_at"],
@@ -171,17 +174,16 @@ class QueryService:
                 "sleep_score": record.get("sleep_score"),
                 "is_nap": record.get("is_nap", False),
             }
-            
+
             # Parse stages if available
             if record.get("stages"):
                 import json
-                try:
+
+                with suppress(json.JSONDecodeError):
                     session["stages"] = json.loads(record["stages"])
-                except json.JSONDecodeError:
-                    pass
-            
+
             sessions.append(session)
-        
+
         return sessions
 
     def get_workouts(
@@ -194,37 +196,40 @@ class QueryService:
     ) -> list[dict[str, Any]]:
         """Get workouts for date range with optional filters."""
         records = self.db.query_workouts(self.user_id, start_date, end_date)
-        
+
         workouts = []
         for record in records:
             # Apply filters
-            if activity_types:
-                if record["activity_type"].lower() not in [t.lower() for t in activity_types]:
-                    continue
-            
+            if activity_types and record["activity_type"].lower() not in [
+                t.lower() for t in activity_types
+            ]:
+                continue
+
             if min_duration and record.get("duration_minutes", 0) < min_duration:
                 continue
-            
+
             if min_distance_km:
                 distance_km = (record.get("distance_m") or 0) / 1000
                 if distance_km < min_distance_km:
                     continue
-            
-            workouts.append({
-                "workout_id": record["workout_id"],
-                "activity_type": record["activity_type"],
-                "start_at": record["start_at"],
-                "end_at": record["end_at"],
-                "duration_minutes": record["duration_minutes"],
-                "distance_m": record.get("distance_m"),
-                "calories_kcal": record.get("calories_kcal"),
-                "avg_heart_rate_bpm": record.get("avg_heart_rate_bpm"),
-                "max_heart_rate_bpm": record.get("max_heart_rate_bpm"),
-                "avg_pace_sec_per_km": record.get("avg_pace_sec_per_km"),
-                "max_pace_sec_per_km": record.get("max_pace_sec_per_km"),
-                "total_steps": record.get("total_steps"),
-            })
-        
+
+            workouts.append(
+                {
+                    "workout_id": record["workout_id"],
+                    "activity_type": record["activity_type"],
+                    "start_at": record["start_at"],
+                    "end_at": record["end_at"],
+                    "duration_minutes": record["duration_minutes"],
+                    "distance_m": record.get("distance_m"),
+                    "calories_kcal": record.get("calories_kcal"),
+                    "avg_heart_rate_bpm": record.get("avg_heart_rate_bpm"),
+                    "max_heart_rate_bpm": record.get("max_heart_rate_bpm"),
+                    "avg_pace_sec_per_km": record.get("avg_pace_sec_per_km"),
+                    "max_pace_sec_per_km": record.get("max_pace_sec_per_km"),
+                    "total_steps": record.get("total_steps"),
+                }
+            )
+
         return workouts
 
     def get_body_measurements(
@@ -235,25 +240,30 @@ class QueryService:
     ) -> list[dict[str, Any]]:
         """Get body measurements for date range."""
         records = self.db.query_body_measurements(self.user_id, start_date, end_date)
-        
+
         measurements = []
         for record in records:
             measurement = {
                 "timestamp": record["timestamp"],
                 "weight_kg": record["weight_kg"],
             }
-            
+
             # Add optional metrics
             optional_fields = [
-                "bmi", "body_fat_pct", "muscle_mass_kg", "water_pct",
-                "bone_mass_kg", "visceral_fat_score", "basal_metabolism_kcal",
+                "bmi",
+                "body_fat_pct",
+                "muscle_mass_kg",
+                "water_pct",
+                "bone_mass_kg",
+                "visceral_fat_score",
+                "basal_metabolism_kcal",
                 "metabolic_age",
             ]
-            
+
             for field in optional_fields:
                 if record.get(field) is not None:
                     measurement[field] = record[field]
-            
+
             # Filter metrics if specified
             if metrics:
                 filtered = {"timestamp": measurement["timestamp"]}
@@ -261,7 +271,7 @@ class QueryService:
                     if metric in measurement:
                         filtered[metric] = measurement[metric]
                 measurement = filtered
-            
+
             measurements.append(measurement)
 
         return measurements
@@ -294,8 +304,8 @@ class QueryService:
     def get_data_coverage(self, data_types: list[str] | None = None) -> list[dict[str, Any]]:
         """Get data coverage information."""
         coverage = self.db.get_data_coverage(self.user_id)
-        
+
         if data_types:
             coverage = [c for c in coverage if c["data_type"] in data_types]
-        
+
         return coverage
