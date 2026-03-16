@@ -1,5 +1,9 @@
 # Mi Fitness MCP
 
+[![CI](https://github.com/kubulashvili/mi-fitness-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/kubulashvili/mi-fitness-mcp/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/kubulashvili/mi-fitness-mcp)](https://github.com/kubulashvili/mi-fitness-mcp/releases)
+[![License](https://img.shields.io/github/license/kubulashvili/mi-fitness-mcp)](https://github.com/kubulashvili/mi-fitness-mcp/blob/main/LICENSE)
+
 MCP server for Mi Fitness data.
 
 This project provides a local SQLite-backed MCP server for Mi Fitness cloud data.
