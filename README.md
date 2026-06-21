@@ -1,80 +1,144 @@
-# Mi Fitness MCP
+# Mi Fitness MCP CN
 
-[![CI](https://github.com/kubulashvili/mi-fitness-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/kubulashvili/mi-fitness-mcp/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/kubulashvili/mi-fitness-mcp)](https://github.com/kubulashvili/mi-fitness-mcp/releases)
-[![License](https://img.shields.io/github/license/kubulashvili/mi-fitness-mcp)](https://github.com/kubulashvili/mi-fitness-mcp/blob/main/LICENSE)
+小米运动健康 / Mi Fitness 数据本地 MCP Server。
 
-MCP server for Mi Fitness data.
+本项目基于 `kubulashvili/mi-fitness-mcp` 修改，增加中国区小米健康云适配，并补充睡眠与运动记录同步能力。
 
-This project provides a local SQLite-backed MCP server for Mi Fitness cloud data.
+> 非小米官方项目，仅用于读取和分析你自己的健康数据。数据默认同步到本地 SQLite。
 
-## Current data coverage
+## 功能
 
-Confirmed with the current cloud flow:
+- 读取小米运动健康云端数据
+- 本地 SQLite 缓存
+- MCP Server 支持
+- 支持中国区：`--region cn`
+- 支持数据类型：
+  - `daily_activity`：步数、距离、活动卡路里
+  - `heart_rate`：心率采样
+  - `sleep`：睡眠记录
+  - `workouts`：运动记录
+  - `body_measurements`：体重 / 身体成分，视账号数据而定
 
-- daily activity
-  - steps
-  - distance
-  - active calories
-- heart rate
-- body measurements
-  - weight
-  - BMI
-  - fat, water, bone, and muscle metrics
-  - visceral fat
-  - basal metabolism
+## 已逆向验证的接口
 
-Not yet confirmed with the current Xiaomi cloud endpoint:
+### 健康数据接口
 
-- sleep
-- workouts
+```text
+POST https://hlth.io.mi.com/app/v1/data/get_fitness_data_by_time
+```
 
-## Install
+常用 key：
+
+```text
+steps
+calories
+heart_rate
+weight
+sleep
+```
+
+睡眠请求示例：
+
+```json
+{
+  "start_time": 1767225600,
+  "end_time": 1782086399,
+  "key": "sleep"
+}
+```
+
+### 运动记录接口
+
+```text
+POST https://hlth.io.mi.com/app/v1/data/get_sport_records_by_time
+```
+
+请求示例：
+
+```json
+{
+  "start_time": 1767225600,
+  "end_time": 1782086399,
+  "limit": 50
+}
+```
+
+返回字段通常包含：
+
+```text
+sport_records
+has_more
+next_key
+```
+
+每条运动记录的 `value` 是 JSON 字符串，包含 `start_time`、`end_time`、`duration`、`distance`、`calories`、`avg_hrm`、`max_hrm` 等字段。
+
+## 安装
 
 ```bash
+git clone git@github.com:binglua/mi-fitness-mcp-cn.git
+cd mi-fitness-mcp-cn
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
 ```
 
-## Setup
+如果当前环境没有系统 keyring，可安装：
 
-You need:
+```bash
+pip install keyrings.alt
+```
+
+注意：`keyrings.alt` 可能以明文文件方式保存凭据。
+
+## 配置
+
+需要从 `https://account.xiaomi.com` 登录后的 Cookie 中获取：
 
 - `userId`
 - `passToken`
 
-Typical flow:
-
-1. Open `https://account.xiaomi.com`
-2. Sign in to your Xiaomi account
-3. Open browser DevTools
-4. Inspect cookies for `account.xiaomi.com`
-5. Copy `userId` and `passToken`
-
-Configure the server:
+中国区账号建议：
 
 ```bash
-mi-fitness-mcp setup --mode mi_fitness_cloud --user-id "<userId>" --pass-token "<passToken>" --region ru
+mi-fitness-mcp setup \
+  --mode mi_fitness_cloud \
+  --user-id "<userId>" \
+  --pass-token "<passToken>" \
+  --region cn
+```
+
+检查连接：
+
+```bash
 mi-fitness-mcp doctor
 ```
 
-For local endpoint exploration there is also a probe script:
+## 同步数据
+
+同步全部可探测数据：
 
 ```bash
-python probe_mifitness.py --user-id "<userId>" --pass-token "<passToken>"
+mi-fitness-mcp sync --start-date 2026-01-01 --end-date 2026-06-21
 ```
 
-## Use
+按类型同步：
 
 ```bash
-mi-fitness-mcp sync --start-date 2025-04-01 --end-date 2025-05-31
+mi-fitness-mcp sync --type daily_activity --start-date 2026-01-01 --end-date 2026-06-21
+mi-fitness-mcp sync --type heart_rate --start-date 2026-01-01 --end-date 2026-06-21
+mi-fitness-mcp sync --type sleep --start-date 2026-01-01 --end-date 2026-06-21
+mi-fitness-mcp sync --type workouts --start-date 2026-01-01 --end-date 2026-06-21
+mi-fitness-mcp sync --type body_measurements --start-date 2026-01-01 --end-date 2026-06-21
+```
+
+## 启动 MCP Server
+
+```bash
 mi-fitness-mcp serve
 ```
 
-## MCP client config
-
-Example `Claude Desktop` config:
+Claude Desktop 配置示例：
 
 ```json
 {
@@ -87,47 +151,48 @@ Example `Claude Desktop` config:
 }
 ```
 
-## Example prompts
+## MCP 工具
 
-- `Show my daily activity for the last 14 days`
-- `How has my resting heart rate changed this month?`
-- `Summarize my latest body measurements`
-- `Sync my latest Mi Fitness data`
+- `get_connection_status`
+- `sync_data`
+- `get_profile`
+- `get_daily_summary`
+- `query_metric_series`
+- `query_heart_rate`
+- `query_body_measurements`
+- `query_sleep`
+- `query_workouts`
+- `get_data_coverage`
 
-## Commands
+## 本地数据库
 
-```bash
-mi-fitness-mcp --help
-mi-fitness-mcp setup --help
-mi-fitness-mcp doctor
-mi-fitness-mcp sync --help
-mi-fitness-mcp serve
+默认位置：
+
+```text
+~/.local/share/mi-fitness-mcp/mi_fitness.db
 ```
 
-## Development
+主要表：
 
-```bash
-pytest
-python -m build
+```text
+daily_activity
+heart_rate_samples
+sleep_sessions
+workouts
+body_measurements
+sync_state
 ```
 
-## Troubleshooting
+## 安全说明
 
-- `Connection: failed`
-  - verify `userId` and `passToken`
-  - verify region, usually `ru`
-- `Credentials not found`
-  - run `setup` again
-- `sync` returns no data
-  - try another date range
-  - verify that the data actually exists in Mi Fitness cloud
+- `passToken` 是敏感凭据，不要泄露。
+- 不要提交本地配置、数据库、keyring 文件。
+- 如果 token 泄露，建议退出小米账号并重新登录刷新。
 
-## Security
+## 免责声明
 
-- `passToken` is stored via the system keyring
-- do not commit `.env`, local config files, or real credentials
-- rotate tokens if they were pasted into chats or shell history
+本项目与小米公司无关。请仅用于读取和分析你自己的健康数据。
 
-## Disclaimer
+## License
 
-This is an unofficial project and is not affiliated with Xiaomi.
+MIT
