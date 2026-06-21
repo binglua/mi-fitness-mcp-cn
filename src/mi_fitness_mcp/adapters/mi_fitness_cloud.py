@@ -18,6 +18,7 @@ from mi_fitness_mcp.models import (
     DailyActivity,
     HeartRateSample,
     SleepSession,
+    SleepStage,
     Workout,
 )
 
@@ -233,6 +234,7 @@ class MiFitnessCloudAdapter(DataAdapter):
             "daily_activity": "steps",
             "heart_rate": "heart_rate",
             "body_measurements": "weight",
+            "sleep": "sleep",
         }
         for data_type, key in probes.items():
             try:
@@ -241,6 +243,12 @@ class MiFitnessCloudAdapter(DataAdapter):
                     types.append(data_type)
             except Exception:
                 continue
+        try:
+            items = await self._fetch_sport_records_by_time("2025-04-01", "2025-05-31")
+            if items:
+                types.append("workouts")
+        except Exception:
+            pass
         return types
 
     def _record_datetime(self, item: dict) -> datetime:
@@ -253,6 +261,57 @@ class MiFitnessCloudAdapter(DataAdapter):
         if isinstance(raw, dict):
             return raw
         return json.loads(raw)
+
+    def _timestamp_to_datetime(self, timestamp: Any, zone_offset: int = 0) -> datetime:
+        return datetime.fromtimestamp(int(timestamp) + int(zone_offset), tz=UTC).replace(tzinfo=None)
+
+    async def _fetch_sport_records_by_time(
+        self, start_date: str, end_date: str, region: str | None = None
+    ) -> list[dict]:
+        region_name = region or self.region
+        base_url = (
+            "https://hlth.io.mi.com"
+            if region_name in ("", "cn")
+            else f"https://{region_name}.hlth.io.mi.com"
+        )
+        start_time = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
+        end_time = int(
+            datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=UTC).timestamp()
+        )
+        next_key = None
+        items: list[dict] = []
+
+        while True:
+            payload: dict[str, Any] = {
+                "start_time": start_time,
+                "end_time": end_time,
+                "limit": 50,
+            }
+            if next_key:
+                payload["next_key"] = next_key
+
+            result = await self._request(
+                base_url, "/app/v1/data/get_sport_records_by_time", payload
+            )
+            items.extend(result.get("sport_records", []))
+            if not result.get("has_more") or not result.get("next_key"):
+                break
+            next_key = result.get("next_key")
+
+        return items
+
+    def _sleep_stage_name(self, state: Any) -> str:
+        mapping = {
+            1: "deep",
+            2: "light",
+            3: "light",
+            4: "awake",
+            5: "rem",
+        }
+        try:
+            return mapping.get(int(state), "light")
+        except Exception:
+            return "light"
 
     def _optional_float(self, value: Any) -> float | None:
         if value is None:
@@ -313,16 +372,123 @@ class MiFitnessCloudAdapter(DataAdapter):
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> AsyncIterator[SleepSession]:
-        if False:
+        if not self.is_connected() or not start_date or not end_date:
+            return
             yield
+
+        records = await self._fetch_key("sleep", start_date, end_date)
+        for item in records:
+            payload = self._parse_value(item)
+            zone_offset = int(item.get("zone_offset", 0) or 0)
+            sleep_start = (
+                payload.get("bedtime")
+                or payload.get("device_bedtime")
+                or payload.get("bed_timestamp")
+            )
+            sleep_end = (
+                payload.get("wake_up_time")
+                or payload.get("device_wake_up_time")
+                or payload.get("out_bed_timestamp")
+                or item.get("time")
+            )
+            if not sleep_start or not sleep_end:
+                continue
+
+            start_at = self._timestamp_to_datetime(sleep_start, zone_offset)
+            end_at = self._timestamp_to_datetime(sleep_end, zone_offset)
+            duration_minutes = int(
+                payload.get("duration")
+                or max(0, (int(sleep_end) - int(sleep_start)) // 60)
+            )
+            awake_minutes = int(
+                payload.get("awake_duration")
+                or payload.get("sleep_awake_duration")
+                or 0
+            )
+            asleep_minutes = max(0, duration_minutes - awake_minutes)
+
+            stages: list[SleepStage] = []
+            for segment in payload.get("items", []) or []:
+                try:
+                    seg_start = int(segment.get("start_time", 0))
+                    seg_end = int(segment.get("end_time", 0))
+                    minutes = max(0, (seg_end - seg_start) // 60)
+                    if minutes:
+                        stages.append(
+                            SleepStage(stage=self._sleep_stage_name(segment.get("state")), minutes=minutes)
+                        )
+                except Exception:
+                    continue
+
+            sleep_id = f"{item.get('sid', self.user_id)}_{item.get('time', int(sleep_end))}"
+            yield SleepSession(
+                id=f"mi_fitness_sleep_{sleep_id}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                sleep_id=sleep_id,
+                start_at=start_at,
+                end_at=end_at,
+                duration_minutes=duration_minutes,
+                time_asleep_minutes=asleep_minutes,
+                time_awake_minutes=awake_minutes,
+                sleep_score=self._optional_int(payload.get("score") or payload.get("sleep_score")),
+                is_nap=bool(payload.get("is_nap", False)),
+                stages=stages,
+            )
 
     async def iter_workouts(
         self,
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> AsyncIterator[Workout]:
-        if False:
+        if not self.is_connected() or not start_date or not end_date:
+            return
             yield
+
+        records = await self._fetch_sport_records_by_time(start_date, end_date)
+        for item in records:
+            payload = self._parse_value(item)
+            zone_offset = int(item.get("zone_offset", 0) or 0)
+            start_ts = payload.get("start_time") or item.get("time")
+            end_ts = payload.get("end_time")
+            duration_seconds = int(payload.get("duration", 0) or 0)
+            if not end_ts and start_ts:
+                end_ts = int(start_ts) + duration_seconds
+            if not start_ts or not end_ts:
+                continue
+
+            start_at = self._timestamp_to_datetime(start_ts, zone_offset)
+            end_at = self._timestamp_to_datetime(end_ts, zone_offset)
+            duration_minutes = max(0, int(duration_seconds // 60))
+            if duration_minutes == 0:
+                duration_minutes = max(0, (int(end_ts) - int(start_ts)) // 60)
+
+            workout_id = f"{item.get('sid', self.user_id)}_{item.get('key', 'workout')}_{item.get('time', start_ts)}"
+            yield Workout(
+                id=f"mi_fitness_workout_{workout_id}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                workout_id=workout_id,
+                activity_type=str(item.get("category") or item.get("key") or payload.get("sport_type") or "workout"),
+                start_at=start_at,
+                end_at=end_at,
+                duration_minutes=duration_minutes,
+                distance_m=self._optional_float(payload.get("distance")),
+                calories_kcal=self._optional_float(payload.get("calories") or payload.get("total_cal")),
+                avg_heart_rate_bpm=self._optional_int(payload.get("avg_hrm")),
+                max_heart_rate_bpm=self._optional_int(payload.get("max_hrm")),
+                avg_pace_sec_per_km=self._optional_float(payload.get("avg_pace")),
+                max_pace_sec_per_km=self._optional_float(payload.get("max_pace")),
+                total_steps=self._optional_int(payload.get("steps") or payload.get("total_steps")),
+            )
 
     async def iter_body_measurements(
         self,
