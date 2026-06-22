@@ -193,6 +193,25 @@ sync_state
 
 本项目与小米公司无关。请仅用于读取和分析你自己的健康数据。
 
+
+
+### 新增健康指标
+
+本分支额外逆向并验证了以下小米运动健康云端 key，并已接入 CLI 同步、本地 SQLite 缓存和 MCP 查询工具：
+
+- `resting_heart_rate`：静息心率，合并到 `query_heart_rate(sample_type="resting")`。
+- `spo2`：血氧饱和度，CLI 类型 `spo2`，MCP 工具 `query_spo2`。
+- `stress`：压力值，CLI 类型 `stress`，MCP 工具 `query_stress`。
+- `abnormal_heart_beat`：异常心跳事件，CLI 类型 `abnormal_heart_beat`，MCP 工具 `query_abnormal_heart_beat`。
+
+示例：
+
+```bash
+mi-fitness-mcp sync --type spo2 --start-date 2026-06-01 --end-date 2026-06-22
+mi-fitness-mcp sync --type stress --start-date 2026-06-01 --end-date 2026-06-22
+mi-fitness-mcp sync --type abnormal_heart_beat --start-date 2026-06-01 --end-date 2026-06-22
+```
+
 ## License
 
 MIT
