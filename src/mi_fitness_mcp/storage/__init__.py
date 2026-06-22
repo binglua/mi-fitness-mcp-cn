@@ -457,7 +457,11 @@ class Database:
                     timezone, collected_at, timestamp, bpm, sample_type
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    timestamp = excluded.timestamp,
                     bpm = excluded.bpm,
+                    sample_type = excluded.sample_type,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -486,6 +490,9 @@ class Database:
                     timezone, collected_at, timestamp, spo2_pct
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    timestamp = excluded.timestamp,
                     spo2_pct = excluded.spo2_pct,
                     updated_at = CURRENT_TIMESTAMP
                 """,
@@ -514,6 +521,9 @@ class Database:
                     timezone, collected_at, timestamp, stress_score, level
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    timestamp = excluded.timestamp,
                     stress_score = excluded.stress_score,
                     level = excluded.level,
                     updated_at = CURRENT_TIMESTAMP
@@ -544,6 +554,8 @@ class Database:
                     timezone, collected_at, event_id, start_at, end_at, duration_seconds
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, event_id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
                     start_at = excluded.start_at,
                     end_at = excluded.end_at,
                     duration_seconds = excluded.duration_seconds,
@@ -622,7 +634,7 @@ class Database:
                 """
                 SELECT * FROM sleep_sessions
                 WHERE user_id = ?
-                AND date(start_at) >= ? AND date(start_at) <= ?
+                AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ?
                 ORDER BY start_at
                 """,
                 (user_id, start_date, end_date),
@@ -641,7 +653,7 @@ class Database:
                 """
                 SELECT * FROM workouts
                 WHERE user_id = ?
-                AND date(start_at) >= ? AND date(start_at) <= ?
+                AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ?
                 ORDER BY start_at
                 """,
                 (user_id, start_date, end_date),
@@ -660,7 +672,7 @@ class Database:
                 """
                 SELECT * FROM body_measurements
                 WHERE user_id = ?
-                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                AND substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
                 ORDER BY timestamp
                 """,
                 (user_id, start_date, end_date),
@@ -678,7 +690,7 @@ class Database:
                 """
                 SELECT * FROM heart_rate_samples
                 WHERE user_id = ?
-                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                AND substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
                 ORDER BY timestamp
                 """,
                 (user_id, start_date, end_date),
@@ -696,7 +708,7 @@ class Database:
                 """
                 SELECT * FROM spo2_samples
                 WHERE user_id = ?
-                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                AND substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
                 ORDER BY timestamp
                 """,
                 (user_id, start_date, end_date),
@@ -714,7 +726,7 @@ class Database:
                 """
                 SELECT * FROM stress_samples
                 WHERE user_id = ?
-                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                AND substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
                 ORDER BY timestamp
                 """,
                 (user_id, start_date, end_date),
@@ -732,7 +744,7 @@ class Database:
                 """
                 SELECT * FROM abnormal_heart_beat_events
                 WHERE user_id = ?
-                AND date(start_at) >= ? AND date(start_at) <= ?
+                AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ?
                 ORDER BY start_at
                 """,
                 (user_id, start_date, end_date),
@@ -768,9 +780,9 @@ class Database:
             row = conn.execute(
                 """
                 SELECT
-                    MIN(date(start_at)) as first_date,
-                    MAX(date(start_at)) as last_date,
-                    COUNT(DISTINCT date(start_at)) as days_with_data
+                    MIN(substr(start_at, 1, 10)) as first_date,
+                    MAX(substr(start_at, 1, 10)) as last_date,
+                    COUNT(DISTINCT substr(start_at, 1, 10)) as days_with_data
                 FROM sleep_sessions
                 WHERE user_id = ?
                 """,
@@ -788,9 +800,9 @@ class Database:
             row = conn.execute(
                 """
                 SELECT
-                    MIN(date(start_at)) as first_date,
-                    MAX(date(start_at)) as last_date,
-                    COUNT(DISTINCT date(start_at)) as days_with_data
+                    MIN(substr(start_at, 1, 10)) as first_date,
+                    MAX(substr(start_at, 1, 10)) as last_date,
+                    COUNT(DISTINCT substr(start_at, 1, 10)) as days_with_data
                 FROM workouts
                 WHERE user_id = ?
                 """,
@@ -808,9 +820,9 @@ class Database:
             row = conn.execute(
                 """
                 SELECT
-                    MIN(date(timestamp)) as first_date,
-                    MAX(date(timestamp)) as last_date,
-                    COUNT(DISTINCT date(timestamp)) as days_with_data
+                    MIN(substr(timestamp, 1, 10)) as first_date,
+                    MAX(substr(timestamp, 1, 10)) as last_date,
+                    COUNT(DISTINCT substr(timestamp, 1, 10)) as days_with_data
                 FROM body_measurements
                 WHERE user_id = ?
                 """,
@@ -827,9 +839,9 @@ class Database:
             row = conn.execute(
                 """
                 SELECT
-                    MIN(date(timestamp)) as first_date,
-                    MAX(date(timestamp)) as last_date,
-                    COUNT(DISTINCT date(timestamp)) as days_with_data
+                    MIN(substr(timestamp, 1, 10)) as first_date,
+                    MAX(substr(timestamp, 1, 10)) as last_date,
+                    COUNT(DISTINCT substr(timestamp, 1, 10)) as days_with_data
                 FROM heart_rate_samples
                 WHERE user_id = ?
                 """,

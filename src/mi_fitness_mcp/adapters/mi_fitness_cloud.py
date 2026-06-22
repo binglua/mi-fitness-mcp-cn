@@ -6,7 +6,7 @@ import os
 import struct
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -184,6 +184,21 @@ class MiFitnessCloudAdapter(DataAdapter):
                 await asyncio.sleep(0.5 * (attempt + 1))
         raise RuntimeError(f"Mi Fitness request failed: {last_error}")
 
+
+    def _request_timezone(self, region: str | None = None) -> timezone:
+        region_name = self.region if region is None else region
+        if region_name in ("", "cn"):
+            return timezone(timedelta(hours=8))
+        return UTC
+
+    def _date_range_to_timestamps(
+        self, start_date: str, end_date: str, region: str | None = None
+    ) -> tuple[int, int]:
+        tz = self._request_timezone(region)
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=tz)
+        end_dt = datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=tz)
+        return int(start_dt.timestamp()), int(end_dt.timestamp())
+
     async def _fetch_key(
         self, key: str, start_date: str, end_date: str, region: str | None = None
     ) -> list[dict]:
@@ -193,10 +208,7 @@ class MiFitnessCloudAdapter(DataAdapter):
             if region_name in ("", "cn")
             else f"https://{region_name}.hlth.io.mi.com"
         )
-        start_time = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
-        end_time = int(
-            datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=UTC).timestamp()
-        )
+        start_time, end_time = self._date_range_to_timestamps(start_date, end_date, region_name)
         next_key = None
         items: list[dict] = []
 
@@ -259,8 +271,9 @@ class MiFitnessCloudAdapter(DataAdapter):
 
     def _record_datetime(self, item: dict) -> datetime:
         timestamp = int(item.get("time", 0))
-        zone_offset = int(item.get("zone_offset", 0))
-        return datetime.fromtimestamp(timestamp + zone_offset, tz=UTC).replace(tzinfo=None)
+        zone_offset = int(item.get("zone_offset", 0) or 0)
+        tz = timezone(timedelta(seconds=zone_offset))
+        return datetime.fromtimestamp(timestamp, tz=tz)
 
     def _parse_value(self, item: dict) -> dict[str, Any]:
         raw = item.get("value", "{}")
@@ -269,7 +282,8 @@ class MiFitnessCloudAdapter(DataAdapter):
         return json.loads(raw)
 
     def _timestamp_to_datetime(self, timestamp: Any, zone_offset: int = 0) -> datetime:
-        return datetime.fromtimestamp(int(timestamp) + int(zone_offset), tz=UTC).replace(tzinfo=None)
+        tz = timezone(timedelta(seconds=int(zone_offset or 0)))
+        return datetime.fromtimestamp(int(timestamp), tz=tz)
 
     async def _fetch_sport_records_by_time(
         self, start_date: str, end_date: str, region: str | None = None
@@ -280,10 +294,7 @@ class MiFitnessCloudAdapter(DataAdapter):
             if region_name in ("", "cn")
             else f"https://{region_name}.hlth.io.mi.com"
         )
-        start_time = int(datetime.fromisoformat(start_date).replace(tzinfo=UTC).timestamp())
-        end_time = int(
-            datetime.fromisoformat(end_date + "T23:59:59").replace(tzinfo=UTC).timestamp()
-        )
+        start_time, end_time = self._date_range_to_timestamps(start_date, end_date, region_name)
         next_key = None
         items: list[dict] = []
 
