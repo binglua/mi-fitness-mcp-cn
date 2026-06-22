@@ -8,10 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from mi_fitness_mcp.models import (
+    AbnormalHeartBeatEvent,
     BodyMeasurement,
     DailyActivity,
     HeartRateSample,
     SleepSession,
+    SpO2Sample,
+    StressSample,
     Workout,
 )
 
@@ -158,6 +161,63 @@ class Database:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS spo2_samples (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    timestamp TIMESTAMP NOT NULL,
+                    spo2_pct INTEGER NOT NULL,
+                    UNIQUE(user_id, timestamp)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stress_samples (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    timestamp TIMESTAMP NOT NULL,
+                    stress_score INTEGER NOT NULL,
+                    level TEXT NOT NULL,
+                    UNIQUE(user_id, timestamp)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS abnormal_heart_beat_events (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    event_id TEXT NOT NULL,
+                    start_at TIMESTAMP NOT NULL,
+                    end_at TIMESTAMP NOT NULL,
+                    duration_seconds INTEGER NOT NULL,
+                    UNIQUE(user_id, event_id)
+                )
+            """)
+
             # Sync state table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sync_state (
@@ -189,6 +249,18 @@ class Database:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_heart_rate_user_ts
                 ON heart_rate_samples(user_id, timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_spo2_user_ts
+                ON spo2_samples(user_id, timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stress_user_ts
+                ON stress_samples(user_id, timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_abnormal_hr_user_start
+                ON abnormal_heart_beat_events(user_id, start_at)
             """)
 
             conn.commit()
@@ -405,6 +477,97 @@ class Database:
             conn.commit()
             return cursor.rowcount > 0
 
+    def insert_spo2_sample(self, sample: SpO2Sample) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO spo2_samples (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, timestamp, spo2_pct
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    spo2_pct = excluded.spo2_pct,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    sample.id,
+                    sample.provider,
+                    sample.source_type,
+                    sample.source_record_id,
+                    sample.user_id,
+                    sample.device_id,
+                    sample.timezone,
+                    sample.collected_at.isoformat() if sample.collected_at else None,
+                    sample.timestamp.isoformat(),
+                    sample.spo2_pct,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_stress_sample(self, sample: StressSample) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO stress_samples (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, timestamp, stress_score, level
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    stress_score = excluded.stress_score,
+                    level = excluded.level,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    sample.id,
+                    sample.provider,
+                    sample.source_type,
+                    sample.source_record_id,
+                    sample.user_id,
+                    sample.device_id,
+                    sample.timezone,
+                    sample.collected_at.isoformat() if sample.collected_at else None,
+                    sample.timestamp.isoformat(),
+                    sample.stress_score,
+                    sample.level,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_abnormal_heart_beat_event(self, event: AbnormalHeartBeatEvent) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO abnormal_heart_beat_events (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, event_id, start_at, end_at, duration_seconds
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, event_id) DO UPDATE SET
+                    start_at = excluded.start_at,
+                    end_at = excluded.end_at,
+                    duration_seconds = excluded.duration_seconds,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    event.id,
+                    event.provider,
+                    event.source_type,
+                    event.source_record_id,
+                    event.user_id,
+                    event.device_id,
+                    event.timezone,
+                    event.collected_at.isoformat() if event.collected_at else None,
+                    event.event_id,
+                    event.start_at.isoformat(),
+                    event.end_at.isoformat(),
+                    event.duration_seconds,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+
     def update_sync_state(self, data_type: str, last_record_ts: datetime | None = None) -> None:
         """Update sync state for a data type."""
         with self._get_connection() as conn:
@@ -522,6 +685,60 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def query_spo2_samples(
+        self,
+        user_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM spo2_samples
+                WHERE user_id = ?
+                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                ORDER BY timestamp
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def query_stress_samples(
+        self,
+        user_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM stress_samples
+                WHERE user_id = ?
+                AND date(timestamp) >= ? AND date(timestamp) <= ?
+                ORDER BY timestamp
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def query_abnormal_heart_beat_events(
+        self,
+        user_id: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM abnormal_heart_beat_events
+                WHERE user_id = ?
+                AND date(start_at) >= ? AND date(start_at) <= ?
+                ORDER BY start_at
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def get_data_coverage(self, user_id: str) -> list[dict[str, Any]]:
         """Get data coverage statistics."""
         with self._get_connection() as conn:
@@ -625,5 +842,25 @@ class Database:
                         **dict(row),
                     }
                 )
+
+
+            for data_type, table_name, date_expr in [
+                ("spo2", "spo2_samples", "timestamp"),
+                ("stress", "stress_samples", "timestamp"),
+                ("abnormal_heart_beat", "abnormal_heart_beat_events", "start_at"),
+            ]:
+                row = conn.execute(
+                    f"""
+                    SELECT
+                        MIN(date({date_expr})) as first_date,
+                        MAX(date({date_expr})) as last_date,
+                        COUNT(DISTINCT date({date_expr})) as days_with_data
+                    FROM {table_name}
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                ).fetchone()
+                if row and row["first_date"]:
+                    results.append({"data_type": data_type, **dict(row)})
 
             return results

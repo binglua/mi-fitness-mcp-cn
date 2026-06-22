@@ -123,6 +123,36 @@ class SyncService:
                 if last_ts is None or sample.timestamp > last_ts:
                     last_ts = sample.timestamp
 
+        elif data_type == "spo2":
+            records = self.adapter.iter_spo2(start_date, end_date)
+            async for sample in self._iterate_records(records):
+                if self.db.insert_spo2_sample(sample):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or sample.timestamp > last_ts:
+                    last_ts = sample.timestamp
+
+        elif data_type == "stress":
+            records = self.adapter.iter_stress(start_date, end_date)
+            async for sample in self._iterate_records(records):
+                if self.db.insert_stress_sample(sample):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or sample.timestamp > last_ts:
+                    last_ts = sample.timestamp
+
+        elif data_type == "abnormal_heart_beat":
+            records = self.adapter.iter_abnormal_heart_beat(start_date, end_date)
+            async for event in self._iterate_records(records):
+                if self.db.insert_abnormal_heart_beat_event(event):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or event.start_at > last_ts:
+                    last_ts = event.start_at
+
         else:
             raise ValueError(f"Unknown data type: {data_type}")
 

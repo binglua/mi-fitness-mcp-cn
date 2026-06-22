@@ -5,10 +5,13 @@ from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import Any, Union
 
 from mi_fitness_mcp.models import (
+    AbnormalHeartBeatEvent,
     BodyMeasurement,
     DailyActivity,
     HeartRateSample,
     SleepSession,
+    SpO2Sample,
+    StressSample,
     Workout,
 )
 
@@ -78,6 +81,33 @@ class DataAdapter(ABC):
         end_date: str | None = None,
     ) -> Iterator[HeartRateSample] | AsyncIterator[HeartRateSample]:
         """Iterate over heart rate records."""
+        pass
+
+    @abstractmethod
+    def iter_spo2(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[SpO2Sample] | AsyncIterator[SpO2Sample]:
+        """Iterate over blood oxygen saturation records."""
+        pass
+
+    @abstractmethod
+    def iter_stress(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[StressSample] | AsyncIterator[StressSample]:
+        """Iterate over stress records."""
+        pass
+
+    @abstractmethod
+    def iter_abnormal_heart_beat(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[AbnormalHeartBeatEvent] | AsyncIterator[AbnormalHeartBeatEvent]:
+        """Iterate over abnormal heart beat events."""
         pass
 
     @abstractmethod

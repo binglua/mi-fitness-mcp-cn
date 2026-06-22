@@ -14,11 +14,14 @@ import httpx
 
 from mi_fitness_mcp.adapters.base import DataAdapter
 from mi_fitness_mcp.models import (
+    AbnormalHeartBeatEvent,
     BodyMeasurement,
     DailyActivity,
     HeartRateSample,
     SleepSession,
     SleepStage,
+    SpO2Sample,
+    StressSample,
     Workout,
 )
 
@@ -235,6 +238,9 @@ class MiFitnessCloudAdapter(DataAdapter):
             "heart_rate": "heart_rate",
             "body_measurements": "weight",
             "sleep": "sleep",
+            "spo2": "spo2",
+            "stress": "stress",
+            "abnormal_heart_beat": "abnormal_heart_beat",
         }
         for data_type, key in probes.items():
             try:
@@ -537,10 +543,131 @@ class MiFitnessCloudAdapter(DataAdapter):
                 id=f"mi_fitness_hr_{int(item.get('time', 0))}",
                 provider="mi_fitness",
                 source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
                 user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
                 timestamp=self._record_datetime(item),
                 bpm=int(payload.get("bpm", 0)),
                 sample_type=sample_type,
+            )
+
+        resting_records = await self._fetch_key("resting_heart_rate", start_date, end_date)
+        for item in resting_records:
+            payload = self._parse_value(item)
+            timestamp = payload.get("date_time") or item.get("time")
+            yield HeartRateSample(
+                id=f"mi_fitness_resting_hr_{int(timestamp or item.get('time', 0))}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                timestamp=self._timestamp_to_datetime(timestamp or item.get("time"), int(item.get("zone_offset", 0) or 0)),
+                bpm=int(payload.get("bpm", 0)),
+                sample_type="resting",
+            )
+
+
+    def _stress_level(self, score: int) -> str:
+        if score < 30:
+            return "low"
+        if score < 60:
+            return "medium"
+        return "high"
+
+    async def iter_spo2(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> AsyncIterator[SpO2Sample]:
+        if not self.is_connected() or not start_date or not end_date:
+            return
+            yield
+
+        records = await self._fetch_key("spo2", start_date, end_date)
+        for item in records:
+            payload = self._parse_value(item)
+            timestamp = payload.get("time") or item.get("time")
+            spo2 = payload.get("spo2") or payload.get("value")
+            if timestamp is None or spo2 is None:
+                continue
+            yield SpO2Sample(
+                id=f"mi_fitness_spo2_{int(timestamp)}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                timestamp=self._timestamp_to_datetime(timestamp, int(item.get("zone_offset", 0) or 0)),
+                spo2_pct=int(float(spo2)),
+            )
+
+    async def iter_stress(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> AsyncIterator[StressSample]:
+        if not self.is_connected() or not start_date or not end_date:
+            return
+            yield
+
+        records = await self._fetch_key("stress", start_date, end_date)
+        for item in records:
+            payload = self._parse_value(item)
+            timestamp = payload.get("time") or item.get("time")
+            stress = payload.get("stress") or payload.get("score") or payload.get("value")
+            if timestamp is None or stress is None:
+                continue
+            score = int(float(stress))
+            yield StressSample(
+                id=f"mi_fitness_stress_{int(timestamp)}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                timestamp=self._timestamp_to_datetime(timestamp, int(item.get("zone_offset", 0) or 0)),
+                stress_score=score,
+                level=self._stress_level(score),
+            )
+
+    async def iter_abnormal_heart_beat(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> AsyncIterator[AbnormalHeartBeatEvent]:
+        if not self.is_connected() or not start_date or not end_date:
+            return
+            yield
+
+        records = await self._fetch_key("abnormal_heart_beat", start_date, end_date)
+        for item in records:
+            payload = self._parse_value(item)
+            zone_offset = int(item.get("zone_offset", 0) or 0)
+            start_ts = payload.get("start_time") or item.get("time")
+            end_ts = payload.get("end_time") or start_ts
+            if start_ts is None:
+                continue
+            start_at = self._timestamp_to_datetime(start_ts, zone_offset)
+            end_at = self._timestamp_to_datetime(end_ts, zone_offset)
+            duration_seconds = max(0, int(end_ts) - int(start_ts))
+            event_id = f"{item.get('sid', self.user_id)}_{int(start_ts)}"
+            yield AbnormalHeartBeatEvent(
+                id=f"mi_fitness_abnormal_hr_{event_id}",
+                provider="mi_fitness",
+                source_type="cloud_session",
+                source_record_id=str(item.get("time", "")) or None,
+                user_id=self.user_id or "unknown",
+                timezone=item.get("zone_name") or "UTC",
+                collected_at=self._record_datetime(item),
+                event_id=event_id,
+                start_at=start_at,
+                end_at=end_at,
+                duration_seconds=duration_seconds,
             )
 
     async def close(self) -> None:

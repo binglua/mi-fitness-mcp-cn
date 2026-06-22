@@ -161,6 +161,46 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="query_spo2",
+            description="Query blood oxygen saturation samples",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_stress",
+            description="Query stress samples",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "level": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_abnormal_heart_beat",
+            description="Query abnormal heart beat events",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
             name="get_data_coverage",
             description="Get data coverage",
             inputSchema={
@@ -192,6 +232,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = await _handle_query_sleep(arguments)
         elif name == "query_workouts":
             result = await _handle_query_workouts(arguments)
+        elif name == "query_spo2":
+            result = await _handle_query_spo2(arguments)
+        elif name == "query_stress":
+            result = await _handle_query_stress(arguments)
+        elif name == "query_abnormal_heart_beat":
+            result = await _handle_query_abnormal_heart_beat(arguments)
         elif name == "get_data_coverage":
             result = await _handle_get_data_coverage(arguments)
         else:
@@ -213,7 +259,16 @@ async def _handle_get_connection_status() -> dict:
     last_sync = None
     available_types = []
     if db:
-        for data_type in ["daily_activity", "heart_rate", "body_measurements", "sleep", "workouts"]:
+        for data_type in [
+            "daily_activity",
+            "heart_rate",
+            "body_measurements",
+            "sleep",
+            "workouts",
+            "spo2",
+            "stress",
+            "abnormal_heart_beat",
+        ]:
             state = db.get_sync_state(data_type)
             if state and state.get("last_sync_at"):
                 available_types.append(data_type)
@@ -361,6 +416,46 @@ async def _handle_query_workouts(arguments: dict) -> dict:
     )
     return QueryResponse(
         status="ok", source="cache", data={"workouts": workouts, "count": len(workouts)}
+    ).model_dump()
+
+
+async def _handle_query_spo2(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    samples = query_service.get_spo2_samples(
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        limit=arguments.get("limit"),
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"samples": samples, "count": len(samples)}
+    ).model_dump()
+
+
+async def _handle_query_stress(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    samples = query_service.get_stress_samples(
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        level=arguments.get("level"),
+        limit=arguments.get("limit"),
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"samples": samples, "count": len(samples)}
+    ).model_dump()
+
+
+async def _handle_query_abnormal_heart_beat(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    events = query_service.get_abnormal_heart_beat_events(
+        start_date=arguments["start_date"],
+        end_date=arguments["end_date"],
+        limit=arguments.get("limit"),
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"events": events, "count": len(events)}
     ).model_dump()
 
 

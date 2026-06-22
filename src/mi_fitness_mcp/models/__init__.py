@@ -102,13 +102,22 @@ class SpO2Sample(BaseEntity):
     timestamp: datetime = Field(description="Measurement time")
     spo2_pct: int = Field(ge=0, le=100, description="SpO2 percentage")
 
-
 class StressSample(BaseEntity):
     """Stress level measurement."""
 
     timestamp: datetime = Field(description="Measurement time")
     stress_score: int = Field(ge=0, le=100, description="Stress score")
     level: Literal["low", "medium", "high"] = Field(description="Stress level category")
+
+
+class AbnormalHeartBeatEvent(BaseEntity):
+    """Abnormal heart beat event."""
+
+    event_id: str = Field(description="Unique abnormal heart beat event ID")
+    start_at: datetime = Field(description="Event start time")
+    end_at: datetime = Field(description="Event end time")
+    duration_seconds: int = Field(ge=0, description="Event duration in seconds")
+
 
 
 class UserProfile(BaseModel):

@@ -301,6 +301,62 @@ class QueryService:
             return samples[:limit]
         return samples
 
+
+    def get_spo2_samples(
+        self,
+        start_date: str,
+        end_date: str,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        records = self.db.query_spo2_samples(self.user_id, start_date, end_date)
+        samples = [
+            {
+                "timestamp": record["timestamp"],
+                "spo2_pct": record["spo2_pct"],
+            }
+            for record in records
+        ]
+        return samples[:limit] if limit is not None else samples
+
+    def get_stress_samples(
+        self,
+        start_date: str,
+        end_date: str,
+        level: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        records = self.db.query_stress_samples(self.user_id, start_date, end_date)
+        samples = []
+        for record in records:
+            if level and record.get("level") != level:
+                continue
+            samples.append(
+                {
+                    "timestamp": record["timestamp"],
+                    "stress_score": record["stress_score"],
+                    "level": record["level"],
+                }
+            )
+        return samples[:limit] if limit is not None else samples
+
+    def get_abnormal_heart_beat_events(
+        self,
+        start_date: str,
+        end_date: str,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        records = self.db.query_abnormal_heart_beat_events(self.user_id, start_date, end_date)
+        events = [
+            {
+                "event_id": record["event_id"],
+                "start_at": record["start_at"],
+                "end_at": record["end_at"],
+                "duration_seconds": record["duration_seconds"],
+            }
+            for record in records
+        ]
+        return events[:limit] if limit is not None else events
+
     def get_data_coverage(self, data_types: list[str] | None = None) -> list[dict[str, Any]]:
         """Get data coverage information."""
         coverage = self.db.get_data_coverage(self.user_id)
