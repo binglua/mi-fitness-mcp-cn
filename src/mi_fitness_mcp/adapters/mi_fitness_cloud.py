@@ -343,22 +343,36 @@ class MiFitnessCloudAdapter(DataAdapter):
             yield
 
         records = await self._fetch_key("steps", start_date, end_date)
-        daily: dict[str, dict[str, float]] = defaultdict(
-            lambda: {"steps": 0, "distance_m": 0.0, "active_kcal": 0.0}
+        daily: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {
+                "steps": 0,
+                "distance_m": 0.0,
+                "active_kcal": 0.0,
+                "timezone": "UTC",
+                "collected_at": None,
+            }
         )
         for item in records:
             payload = self._parse_value(item)
-            date_str = self._record_datetime(item).strftime("%Y-%m-%d")
+            collected_at = self._record_datetime(item)
+            date_str = collected_at.strftime("%Y-%m-%d")
             daily[date_str]["steps"] += int(payload.get("steps", 0))
             daily[date_str]["distance_m"] += float(payload.get("distance", 0))
             daily[date_str]["active_kcal"] += float(payload.get("calories", 0))
+            daily[date_str]["timezone"] = item.get("zone_name") or daily[date_str]["timezone"]
+            if daily[date_str]["collected_at"] is None or collected_at > daily[date_str]["collected_at"]:
+                daily[date_str]["collected_at"] = collected_at
 
         calorie_records = await self._fetch_key("calories", start_date, end_date)
         calorie_totals: dict[str, float] = defaultdict(float)
         for item in calorie_records:
             payload = self._parse_value(item)
-            date_str = self._record_datetime(item).strftime("%Y-%m-%d")
+            collected_at = self._record_datetime(item)
+            date_str = collected_at.strftime("%Y-%m-%d")
             calorie_totals[date_str] += float(payload.get("calories", 0))
+            daily[date_str]["timezone"] = item.get("zone_name") or daily[date_str]["timezone"]
+            if daily[date_str]["collected_at"] is None or collected_at > daily[date_str]["collected_at"]:
+                daily[date_str]["collected_at"] = collected_at
 
         for date_str, total in calorie_totals.items():
             daily[date_str]["active_kcal"] = total
@@ -369,10 +383,12 @@ class MiFitnessCloudAdapter(DataAdapter):
                 provider="mi_fitness",
                 source_type="cloud_session",
                 user_id=self.user_id or "unknown",
+                timezone=str(values["timezone"]),
+                collected_at=values["collected_at"],
                 date=date_str,
                 steps=int(values["steps"]),
-                distance_m=values["distance_m"],
-                active_kcal=values["active_kcal"],
+                distance_m=float(values["distance_m"]),
+                active_kcal=float(values["active_kcal"]),
             )
 
     async def iter_sleep_sessions(
