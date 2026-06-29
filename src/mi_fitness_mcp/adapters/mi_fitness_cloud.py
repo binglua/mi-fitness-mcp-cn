@@ -244,11 +244,10 @@ class MiFitnessCloudAdapter(DataAdapter):
         return preferred_region
 
     async def _discover_data_types(self) -> list[str]:
-        # The cloud API does not provide a reliable capability endpoint.  The
-        # previous implementation probed a fixed historical range, which made
-        # automatic sync silently skip most metrics when that range had no data.
-        # Return all data types supported by this adapter; syncing a type with no
-        # records is safe and preferable to missing recent data.
+        # 小米健康云没有可靠的能力发现接口。旧实现用固定历史区间探测，
+        # 当该区间无数据时会导致自动同步静默跳过大部分指标。
+        # 这里直接返回本适配器支持的全部数据类型；某类型无记录时同步 0 条即可，
+        # 比漏掉近期数据更安全。
         return [
             "daily_activity",
             "heart_rate",

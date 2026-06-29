@@ -24,7 +24,7 @@ class QueryService:
         """Get daily activity summaries for date range."""
         records = self.db.query_daily_activity(self.user_id, start_date, end_date)
 
-        # Group by date and aggregate
+        # 按日期分组并聚合
         summaries = {}
         for record in records:
             date = record["date"]
@@ -73,7 +73,7 @@ class QueryService:
                     }
                 )
 
-        # Apply aggregation if needed
+        # 按需执行周/月聚合
         if granularity == "week":
             series = self._aggregate_by_week(series, aggregation)
         elif granularity == "month":
@@ -91,7 +91,7 @@ class QueryService:
 
         for item in series:
             date = datetime.strptime(item["date"], "%Y-%m-%d")
-            # Get week start (Monday)
+            # 计算周起始日（周一）
             week_start = date - timedelta(days=date.weekday())
             week_key = week_start.strftime("%Y-%m-%d")
 
@@ -160,7 +160,7 @@ class QueryService:
 
         sessions = []
         for record in records:
-            # Skip naps if not included
+            # 不包含小睡时跳过 nap 记录
             if not include_naps and record.get("is_nap"):
                 continue
 
@@ -175,7 +175,7 @@ class QueryService:
                 "is_nap": record.get("is_nap", False),
             }
 
-            # Parse stages if available
+            # 如有睡眠阶段信息则解析
             if record.get("stages"):
                 import json
 
@@ -199,7 +199,7 @@ class QueryService:
 
         workouts = []
         for record in records:
-            # Apply filters
+            # 应用过滤条件
             if activity_types and record["activity_type"].lower() not in [
                 t.lower() for t in activity_types
             ]:
@@ -248,7 +248,7 @@ class QueryService:
                 "weight_kg": record["weight_kg"],
             }
 
-            # Add optional metrics
+            # 添加可选指标
             optional_fields = [
                 "bmi",
                 "body_fat_pct",
@@ -264,7 +264,7 @@ class QueryService:
                 if record.get(field) is not None:
                     measurement[field] = record[field]
 
-            # Filter metrics if specified
+            # 如指定指标列表则过滤字段
             if metrics:
                 filtered = {"timestamp": measurement["timestamp"]}
                 for metric in metrics:

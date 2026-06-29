@@ -36,7 +36,7 @@ class Database:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._get_connection() as conn:
-            # Daily activity table
+            # 日常活动表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS daily_activity (
                     id TEXT PRIMARY KEY,
@@ -60,7 +60,7 @@ class Database:
                 )
             """)
 
-            # Sleep sessions table
+            # 睡眠记录表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sleep_sessions (
                     id TEXT PRIMARY KEY,
@@ -86,7 +86,7 @@ class Database:
                 )
             """)
 
-            # Workouts table
+            # 运动记录表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS workouts (
                     id TEXT PRIMARY KEY,
@@ -115,7 +115,7 @@ class Database:
                 )
             """)
 
-            # Body measurements table
+            # 身体测量表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS body_measurements (
                     id TEXT PRIMARY KEY,
@@ -218,7 +218,7 @@ class Database:
                 )
             """)
 
-            # Sync state table
+            # 同步状态表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sync_state (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -229,7 +229,7 @@ class Database:
                 )
             """)
 
-            # Create indexes for better query performance
+            # 创建索引以提升查询性能
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activity_user_date
                 ON daily_activity(user_id, date)
@@ -758,7 +758,7 @@ class Database:
         with self._get_connection() as conn:
             results = []
 
-            # Activity coverage
+            # 日常活动覆盖范围
             row = conn.execute(
                 """
                 SELECT
@@ -778,7 +778,7 @@ class Database:
                     }
                 )
 
-            # Sleep coverage
+            # 睡眠覆盖范围
             row = conn.execute(
                 """
                 SELECT
@@ -798,7 +798,7 @@ class Database:
                     }
                 )
 
-            # Workouts coverage
+            # 运动记录覆盖范围
             row = conn.execute(
                 """
                 SELECT
@@ -818,7 +818,7 @@ class Database:
                     }
                 )
 
-            # Body measurements coverage
+            # 身体测量覆盖范围
             row = conn.execute(
                 """
                 SELECT

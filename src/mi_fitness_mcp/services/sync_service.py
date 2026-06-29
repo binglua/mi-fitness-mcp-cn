@@ -55,7 +55,7 @@ class SyncService:
         if not self.adapter.is_connected():
             raise RuntimeError("Adapter not connected")
 
-        # Get last sync state for incremental sync
+        # 获取上次同步状态，用于增量同步
         last_record_ts = None
         if not force_full:
             state = self.db.get_sync_state(data_type)
@@ -72,7 +72,7 @@ class SyncService:
         skipped = 0
         last_ts = None
 
-        # Sync based on data type
+        # 按数据类型执行同步
         if data_type == "daily_activity":
             records = self.adapter.iter_daily_activity(start_date, end_date)
             async for activity in self._iterate_records(records):
@@ -156,7 +156,7 @@ class SyncService:
         else:
             raise ValueError(f"Unknown data type: {data_type}")
 
-        # Update sync state
+        # 更新同步状态
         if last_ts:
             self.db.update_sync_state(data_type, last_ts)
 
