@@ -244,30 +244,21 @@ class MiFitnessCloudAdapter(DataAdapter):
         return preferred_region
 
     async def _discover_data_types(self) -> list[str]:
-        types: list[str] = []
-        probes = {
-            "daily_activity": "steps",
-            "heart_rate": "heart_rate",
-            "body_measurements": "weight",
-            "sleep": "sleep",
-            "spo2": "spo2",
-            "stress": "stress",
-            "abnormal_heart_beat": "abnormal_heart_beat",
-        }
-        for data_type, key in probes.items():
-            try:
-                items = await self._fetch_key(key, "2025-04-01", "2025-05-31")
-                if items:
-                    types.append(data_type)
-            except Exception:
-                continue
-        try:
-            items = await self._fetch_sport_records_by_time("2025-04-01", "2025-05-31")
-            if items:
-                types.append("workouts")
-        except Exception:
-            pass
-        return types
+        # The cloud API does not provide a reliable capability endpoint.  The
+        # previous implementation probed a fixed historical range, which made
+        # automatic sync silently skip most metrics when that range had no data.
+        # Return all data types supported by this adapter; syncing a type with no
+        # records is safe and preferable to missing recent data.
+        return [
+            "daily_activity",
+            "heart_rate",
+            "body_measurements",
+            "sleep",
+            "workouts",
+            "spo2",
+            "stress",
+            "abnormal_heart_beat",
+        ]
 
     def _record_datetime(self, item: dict) -> datetime:
         timestamp = int(item.get("time", 0))
